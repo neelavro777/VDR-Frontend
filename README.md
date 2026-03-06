@@ -20,7 +20,6 @@ A dynamic, timeline-based logger for recording vessel movements and operational 
 ### 3. Crew & Contractors Management
 Efficiently manage "Tour of Duty" and "Contractor Lists":
 - **List View**: Optimized for high-density data display.
-- **Dynamic Slide-over Drawer**: Edit personnel details, manage passports, or add sign-on comments without losing context.
 - **Status Indicators**: Visual warnings for missing documentation or incomplete profiles.
 
 ## 🛠 Tech Stack
