@@ -285,7 +285,7 @@ export default function SmartImportModal({
                             </div>
 
                             <div className="overflow-x-auto pb-4 rounded-xl border border-surface-border shadow-xl bg-surface 
-                                [&::-webkit-scrollbar]:h-3 [&::-webkit-scrollbar-track]:bg-surface-raised [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white [&::-webkit-scrollbar-thumb]:border-[3px] [&::-webkit-scrollbar-thumb]:border-surface-raised [&::-webkit-scrollbar-thumb]:rounded-full">
+                                [&::-webkit-scrollbar]:h-[18px] [&::-webkit-scrollbar-track]:bg-surface-raised [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white [&::-webkit-scrollbar-thumb]:rounded-full">
                                 <table className="w-full text-sm">
                                     <thead className="bg-[#1e293b]">
                                         <tr>

@@ -100,8 +100,9 @@ export default function SearchableDropdown({
                     }`}
             />
             <svg
-                className={`absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 transition-transform duration-200 pointer-events-none 
-                    ${error ? "text-danger" : "text-gray-400"} 
+                onClick={() => setIsOpen((prev) => !prev)}
+                className={`absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-[24px] cursor-pointer transition-transform duration-200 
+                    ${error ? "text-danger" : "text-gray-400 hover:text-foreground"} 
                     ${isOpen ? "rotate-180 !text-primary" : ""}`}
                 fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
             >
@@ -109,7 +110,7 @@ export default function SearchableDropdown({
             </svg>
 
             {isOpen && (
-                <ul className="absolute z-50 mt-1 min-w-full w-max max-w-[420px] max-h-56 overflow-auto rounded-lg border border-surface-border bg-surface-raised shadow-2xl py-1 text-sm right-0 animate-fade-in">
+                <ul className="absolute z-[9999] mt-1 min-w-full w-max max-w-[420px] max-h-56 overflow-auto rounded-lg border border-surface-border bg-surface-raised shadow-2xl py-1 text-sm right-0 animate-fade-in">
                     {filtered.length === 0 ? (
                         <li className="px-3 py-2.5 text-gray-400 italic">No matches</li>
                     ) : (
