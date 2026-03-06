@@ -5,7 +5,7 @@ A web application designed for maritime daily operations, activity logging, and 
 ## Key Features
 
 ### 1. Smart Import (Excel/TSV)
-Avoid the headache of unpredictable file uploads. The Smart Import feature uses a **Copy/Paste workflow**:
+The Smart Import feature uses a **Copy/Paste workflow**:
 - **Auto Mapping**: Automatically detects and maps user-pasted columns (e.g., "Full Name" → "Name")
 - **Inline Validation**: A dedicated preview table highlights missing or invalid data with high-visibility red markers.
 - **Contextual Editing**: Edit fields, select nationalities via searchable dropdowns, and pick dates directly within the preview before finalizing the import.
