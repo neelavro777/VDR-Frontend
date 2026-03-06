@@ -1,0 +1,266 @@
+@import "tailwindcss";
+
+@theme inline {
+  /* ——— Maritime Command Console Palette ——— */
+  --color-background: #0c1222;
+  --color-foreground: #e2e8f0;
+
+  /* Surfaces */
+  --color-surface: #151d2e;
+  --color-surface-raised: #1a2438;
+  --color-surface-hover: #1e2a42;
+  --color-surface-border: #253049;
+
+  /* Teal accent — primary */
+  --color-primary: #22d3ee;
+  --color-primary-hover: #06b6d4;
+  --color-primary-muted: #164e63;
+  --color-primary-glow: rgba(34, 211, 238, 0.15);
+  --color-primary-50: rgba(34, 211, 238, 0.08);
+  --color-primary-100: rgba(34, 211, 238, 0.12);
+  --color-primary-200: rgba(34, 211, 238, 0.2);
+  --color-primary-600: #22d3ee;
+  --color-primary-700: #06b6d4;
+
+  /* Status colors */
+  --color-success: #34d399;
+  --color-success-muted: rgba(52, 211, 153, 0.15);
+  --color-warning: #fbbf24;
+  --color-warning-muted: rgba(251, 191, 36, 0.15);
+  --color-danger: #f87171;
+  --color-danger-muted: rgba(248, 113, 113, 0.15);
+
+  /* Neutrals */
+  --color-gray-50: #0f172a;
+  --color-gray-100: #1e293b;
+  --color-gray-200: #253049;
+  --color-gray-300: #334155;
+  --color-gray-400: #64748b;
+  --color-gray-500: #94a3b8;
+  --color-gray-600: #cbd5e1;
+  --color-gray-700: #e2e8f0;
+  --color-gray-800: #f1f5f9;
+  --color-gray-900: #f8fafc;
+
+  /* Typography */
+  --font-sans: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+/* ——— Base ——— */
+body {
+  background: var(--color-background);
+  color: var(--color-foreground);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ——— Focus rings — teal accent ——— */
+*:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* ——— Scrollbar — dark ——— */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-surface);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-gray-300);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-gray-400);
+}
+
+/* ——— Utility: Input field (dark) ——— */
+.vdr-input {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: var(--color-foreground);
+  background: var(--color-surface);
+  border: 1px solid var(--color-surface-border);
+  border-radius: 0.5rem;
+  transition: all 0.15s ease;
+}
+
+.vdr-input::placeholder {
+  color: var(--color-gray-400);
+}
+
+.vdr-input:hover {
+  border-color: var(--color-gray-300);
+}
+
+.vdr-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-glow);
+}
+
+.vdr-input:focus::placeholder {
+  color: transparent;
+}
+
+/* ——— Number input: hide spinners ——— */
+.vdr-input[type="number"],
+input[inputmode="numeric"] {
+  -moz-appearance: textfield;
+}
+
+.vdr-input::-webkit-outer-spin-button,
+.vdr-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* ——— Smooth card surfaces ——— */
+.vdr-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-surface-border);
+  border-radius: 0.75rem;
+}
+
+.vdr-card-raised {
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-surface-border);
+  border-radius: 0.75rem;
+}
+
+/* ——— Keyframes ——— */
+@keyframes glow-pulse {
+
+  0%,
+  100% {
+    box-shadow: 0 0 4px rgba(34, 211, 238, 0.3);
+  }
+
+  50% {
+    box-shadow: 0 0 12px rgba(34, 211, 238, 0.5);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-glow-pulse {
+  animation: glow-pulse 2s ease-in-out infinite;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.15s ease-out;
+}
+
+/* ——— Slide-over drawer ——— */
+@keyframes slide-in-right {
+  from {
+    transform: translateX(100%);
+  }
+
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes backdrop-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.animate-backdrop-in {
+  animation: backdrop-in 0.2s ease-out;
+}
+
+/* ——— Dialog entrance ——— */
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.animate-dialog-in {
+  animation: dialog-in 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ——— Step transitions ——— */
+@keyframes step-forward {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes step-back {
+  from {
+    opacity: 0;
+    transform: translateX(-24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-step-forward {
+  animation: step-forward 0.2s ease-out;
+}
+
+.animate-step-back {
+  animation: step-back 0.2s ease-out;
+}
+
+/* ——— Date input dark styling ——— */
+input[type="date"] {
+  color-scheme: dark;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.7) sepia(1) saturate(3) hue-rotate(140deg);
+  cursor: pointer;
+}
+
+/* ——— Auto-expand textarea ——— */
+.auto-expand {
+  field-sizing: content;
+  min-height: 2.5rem;
+  max-height: 10rem;
+  resize: vertical;
+}
