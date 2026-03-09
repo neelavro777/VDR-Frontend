@@ -196,7 +196,7 @@ export default function SmartImportModal({
         const colsToDrop = new Set<number>();
         rawHeaders.forEach((h, idx) => {
             const lowerH = h.toLowerCase().replace(/[\r\n]+/g, '');
-            if (lowerH === "no." || lowerH === "no" || lowerH === "#" || lowerH === "s/n" || lowerH === "serial no." || lowerH === "serial no") {
+            if (lowerH === "no." || lowerH === "no" || lowerH === "#" || lowerH === "s/n") {
                 colsToDrop.add(idx);
             }
         });
@@ -234,18 +234,20 @@ export default function SmartImportModal({
     const updateMapping = useCallback((colIdx: number, reqCol: string) => {
         setColumnMapping(prev => {
             const next = { ...prev };
-            // Optional: If this reqCol is already mapped elsewhere, clear it there? (Strict 1:1)
-            // Let's do strict 1:1 for required columns. If user selects Name for col 3, and Name was on col 1, col 1 becomes unassigned
-            if (reqCol !== "") {
+            // Ensure 1:1 mapping for required columns (ignore/skip can be multiple)
+            if (reqCol !== "" && reqCol !== "ignore") {
                 for (const k in next) {
                     if (next[k] === reqCol) delete next[k];
                 }
+            }
+
+            if (reqCol !== "") {
                 next[colIdx] = reqCol;
             } else {
                 delete next[colIdx];
             }
             // Update stats
-            setStats(s => ({ ...s, mappedCols: Object.keys(next).length }));
+            setStats(s => ({ ...s, mappedCols: Object.values(next).filter(v => v !== "ignore").length }));
             return next;
         });
     }, []);
@@ -260,7 +262,7 @@ export default function SmartImportModal({
             // Map values from the grid
             Object.entries(columnMapping).forEach(([colIdxStr, reqCol]) => {
                 const colIdx = parseInt(colIdxStr, 10);
-                if (rowCells[colIdx]) {
+                if (reqCol && reqCol !== "ignore" && rowCells[colIdx]) {
                     rowObj[reqCol] = rowCells[colIdx].trim();
                 }
             });
@@ -406,13 +408,16 @@ export default function SmartImportModal({
                                                                     onChange={(e) => updateMapping(colIdx, e.target.value)}
                                                                     className={`w-full text-xs font-bold uppercase tracking-wider px-3 py-2 rounded-lg outline-none border transition-colors cursor-pointer appearance-none ${isUnmapped
                                                                         ? "bg-surface border-surface-border hover:border-gray-500 text-gray-500"
-                                                                        : "bg-primary-900/20 text-primary border-primary/40 hover:border-primary/80"
+                                                                        : mappedReq === "ignore"
+                                                                            ? "bg-surface-raised border-surface-border text-gray-400"
+                                                                            : "bg-primary-900/20 text-primary border-primary/40 hover:border-primary/80"
                                                                         }`}
                                                                     style={{ backgroundImage: `url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23${isUnmapped ? '94a3b8' : '38bdf8'}%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.75rem top 50%', backgroundSize: '.65rem auto', paddingRight: '2rem' }}
                                                                 >
-                                                                    <option value="" className="bg-surface text-gray-400">-- Ignore --</option>
+                                                                    <option value="" className="bg-surface text-gray-400">Select Field...</option>
+                                                                    <option value="ignore" className="bg-surface text-gray-400 italic">— Ignore Column —</option>
                                                                     {requiredColumns.map(rc => (
-                                                                        <option key={rc} value={rc} className="bg-surface text-foreground">{rc === "Date Sign-on (DD/MM/YYYY)" ? "Sign-on Date" : rc}</option>
+                                                                        <option key={rc} value={rc} className="bg-surface text-foreground font-bold">{rc === "Date Sign-on (DD/MM/YYYY)" ? "Sign-on Date" : rc}</option>
                                                                     ))}
                                                                 </select>
                                                             </div>
