@@ -11,7 +11,7 @@ const ALIAS_MAP: Record<string, string[]> = {
     "Name": [
         "name", "full name", "crew name", "mariner", "seafarer",
         "employee", "employee name", "personnel", "person", "crew",
-        "first name", "worker", "staff name", "fullname",
+        "first name", "worker", "staff name", "fullname", "first name", "last name",
     ],
     "Rank": [
         "rank", "position", "title", "designation", "role",
@@ -95,6 +95,51 @@ function fromISODate(iso: string) {
     return iso;
 }
 
+// Custom TSV parser to handle Excel's quoted cells containing newlines
+function parseTSV(text: string): string[][] {
+    const rows: string[][] = [];
+    let currentRow: string[] = [];
+    let currentCell = '';
+    let inQuotes = false;
+
+    for (let i = 0; i < text.length; i++) {
+        const char = text[i];
+        const nextChar = text[i + 1];
+
+        if (inQuotes) {
+            if (char === '"') {
+                if (nextChar === '"') {
+                    currentCell += '"'; // escaped quote
+                    i++;
+                } else {
+                    inQuotes = false;
+                }
+            } else {
+                currentCell += char;
+            }
+        } else {
+            if (char === '"') {
+                inQuotes = true;
+            } else if (char === '\t') {
+                currentRow.push(currentCell);
+                currentCell = '';
+            } else if (char === '\n' || (char === '\r' && nextChar === '\n')) {
+                currentRow.push(currentCell);
+                rows.push(currentRow);
+                currentRow = [];
+                currentCell = '';
+                if (char === '\r') i++;
+            } else {
+                currentCell += char;
+            }
+        }
+    }
+    currentRow.push(currentCell);
+
+    // Filter out completely empty rows
+    return rows.filter(row => row.some(cell => cell && cell.trim().length > 0));
+}
+
 /* ═══════════════════════════════════════════════════════════════
    COMPONENT
    ═══════════════════════════════════════════════════════════════ */
@@ -109,7 +154,9 @@ export default function SmartImportModal({
     isOpen, onClose, requiredColumns, onImport,
 }: SmartImportModalProps) {
     const [rawText, setRawText] = useState("");
-    const [previewData, setPreviewData] = useState<Record<string, string>[]>([]);
+    const [pastedHeaders, setPastedHeaders] = useState<string[]>([]);
+    const [pastedRows, setPastedRows] = useState<string[][]>([]);
+    const [columnMapping, setColumnMapping] = useState<Record<number, string>>({}); // mapped from colIndex -> requiredColumnName
     const [stats, setStats] = useState({ pastedRows: 0, mappedCols: 0 });
 
     const dropzoneRef = useRef<HTMLDivElement>(null);
@@ -118,7 +165,9 @@ export default function SmartImportModal({
     useEffect(() => {
         if (isOpen) {
             setRawText("");
-            setPreviewData([]);
+            setPastedHeaders([]);
+            setPastedRows([]);
+            setColumnMapping({});
             setStats({ pastedRows: 0, mappedCols: 0 });
             setTimeout(() => {
                 dropzoneRef.current?.focus();
@@ -133,68 +182,112 @@ export default function SmartImportModal({
 
         // Parse TSV
         if (!text.trim()) {
-            setPreviewData([]);
+            setPastedHeaders([]);
+            setPastedRows([]);
             return;
         }
 
-        const lines = text.split(/\r?\n/);
-        const rows = lines
-            .map((line) => line.split("\t"))
-            .filter((row) => row.some((cell) => cell.trim().length > 0)); // Filter blank rows
+        const rows = parseTSV(text);
 
         if (rows.length < 2) return;
 
-        const headers = rows[0];
-        const mapping: Record<number, string> = {};
-        const mappedSet = new Set<string>();
-
-        // Fuzzy match logic
-        headers.forEach((h, i) => {
-            const match = fuzzyMatchColumn(h);
-            if (match && requiredColumns.includes(match) && !mappedSet.has(match)) {
-                mapping[i] = match;
-                mappedSet.add(match);
+        // Identify columns to drop (strict match for 'No.', '#', etc.)
+        const rawHeaders = rows[0].map(h => h.trim());
+        const colsToDrop = new Set<number>();
+        rawHeaders.forEach((h, idx) => {
+            const lowerH = h.toLowerCase().replace(/[\r\n]+/g, '');
+            if (lowerH === "no." || lowerH === "no" || lowerH === "#" || lowerH === "s/n" || lowerH === "serial no." || lowerH === "serial no") {
+                colsToDrop.add(idx);
             }
         });
 
-        // Build data
-        const dataRows = rows.slice(1).map(cells => {
+        // Filter out those columns from headers and rows
+        const headers = rawHeaders.filter((_, idx) => !colsToDrop.has(idx));
+        const dataRows = rows.slice(1).map(row => row.filter((_, idx) => !colsToDrop.has(idx)));
+
+        const mapping: Record<number, string> = {};
+        let mappedCount = 0;
+
+        // Auto-guess fuzzy matches
+        headers.forEach((h, i) => {
+            const match = fuzzyMatchColumn(h);
+            if (match && requiredColumns.includes(match) && !Object.values(mapping).includes(match)) {
+                mapping[i] = match;
+                mappedCount++;
+            }
+        });
+
+        setPastedHeaders(headers);
+        setPastedRows(dataRows);
+        setColumnMapping(mapping);
+        setStats({ pastedRows: dataRows.length, mappedCols: mappedCount });
+        e.preventDefault();
+    }, [requiredColumns]);
+
+    /* ——— UI Change ——— */
+    const updateCell = useCallback((rowIdx: number, colIdx: number, value: string) => {
+        setPastedRows(prev => prev.map((row, i) =>
+            i === rowIdx ? row.map((cell, j) => j === colIdx ? value : cell) : row
+        ));
+    }, []);
+
+    const updateMapping = useCallback((colIdx: number, reqCol: string) => {
+        setColumnMapping(prev => {
+            const next = { ...prev };
+            // Optional: If this reqCol is already mapped elsewhere, clear it there? (Strict 1:1)
+            // Let's do strict 1:1 for required columns. If user selects Name for col 3, and Name was on col 1, col 1 becomes unassigned
+            if (reqCol !== "") {
+                for (const k in next) {
+                    if (next[k] === reqCol) delete next[k];
+                }
+                next[colIdx] = reqCol;
+            } else {
+                delete next[colIdx];
+            }
+            // Update stats
+            setStats(s => ({ ...s, mappedCols: Object.keys(next).length }));
+            return next;
+        });
+    }, []);
+
+    /* ——— Import Action ——— */
+    const handleImport = useCallback(() => {
+        const mappedData = pastedRows.map(rowCells => {
             const rowObj: Record<string, string> = {};
+            // Initialize required cols to empty string
             requiredColumns.forEach(c => rowObj[c] = "");
 
-            cells.forEach((cellVal, colIndex) => {
-                const mappedCol = mapping[colIndex];
-                if (mappedCol) {
-                    rowObj[mappedCol] = cellVal.trim();
+            // Map values from the grid
+            Object.entries(columnMapping).forEach(([colIdxStr, reqCol]) => {
+                const colIdx = parseInt(colIdxStr, 10);
+                if (rowCells[colIdx]) {
+                    rowObj[reqCol] = rowCells[colIdx].trim();
                 }
             });
             return rowObj;
         }).filter(row => Object.values(row).some(val => val.trim().length > 0));
 
-        setStats({ pastedRows: dataRows.length, mappedCols: mappedSet.size });
-        setPreviewData(dataRows);
-        e.preventDefault();
-    }, [requiredColumns]);
-
-    /* ——— UI Change ——— */
-    const updateCell = useCallback((rowIdx: number, colName: string, value: string) => {
-        setPreviewData(prev => prev.map((row, i) =>
-            i === rowIdx ? { ...row, [colName]: value } : row
-        ));
-    }, []);
-
-    /* ——— Import Action ——— */
-    const handleImport = useCallback(() => {
-        onImport(previewData);
+        onImport(mappedData);
         onClose();
-    }, [previewData, onImport, onClose]);
+    }, [pastedRows, columnMapping, requiredColumns, onImport, onClose]);
 
     if (!isOpen) return null;
 
     // Calculate missing fields (Excluding Comments, which is purely optional)
     const requiredKeys = requiredColumns.filter(c => c !== "Comments");
-    const totalMissing = previewData.reduce((acc, row) => {
-        return acc + requiredKeys.filter(col => !row[col]?.trim()).length;
+    const totalMissing = pastedRows.reduce((acc, rowCells) => {
+        let missingCount = 0;
+        requiredKeys.forEach(reqCol => {
+            // Find which column index is mapped to this required column
+            const mappedIdxStr = Object.keys(columnMapping).find(k => columnMapping[parseInt(k, 10)] === reqCol);
+            if (!mappedIdxStr) {
+                missingCount++; // Entire column is unmapped/missing
+            } else {
+                const val = rowCells[parseInt(mappedIdxStr, 10)];
+                if (!val || !val.trim()) missingCount++;
+            }
+        });
+        return acc + missingCount;
     }, 0);
 
     return (
@@ -215,7 +308,7 @@ export default function SmartImportModal({
                             Smart Import
                         </h2>
                         <p className="text-sm text-gray-400 mt-0.5">
-                            Paste data directly from Excel — Columns are automatically mapped using AI
+                            Paste data directly from Excel — Columns are automatically mapped
                         </p>
                     </div>
                     <button
@@ -230,7 +323,7 @@ export default function SmartImportModal({
 
                 {/* Body */}
                 <div className="flex-1 overflow-auto bg-[#0b101e]">
-                    {previewData.length === 0 ? (
+                    {pastedRows.length === 0 ? (
                         /* ─── The Input Area ─── */
                         <div className="flex flex-col items-center justify-center p-8 h-full min-h-[400px]">
                             <div
@@ -269,7 +362,7 @@ export default function SmartImportModal({
                                 </h3>
                                 <button
                                     type="button"
-                                    onClick={() => { setPreviewData([]); setRawText(""); }}
+                                    onClick={() => { setPastedRows([]); setPastedHeaders([]); setRawText(""); setColumnMapping({}); }}
                                     className="text-xs text-primary hover:text-primary-hover underline underline-offset-2 transition-colors cursor-pointer font-bold uppercase tracking-wider"
                                 >
                                     ← Start over with new data
@@ -290,59 +383,87 @@ export default function SmartImportModal({
                                     <thead className="bg-[#1e293b]">
                                         <tr>
                                             <th className="px-4 py-3 text-left w-12 text-xs font-bold text-gray-500 uppercase tracking-widest border-b border-surface-border">#</th>
-                                            {requiredColumns.map(col => (
-                                                <th key={col} className="px-3 py-3 text-left border-b border-surface-border">
-                                                    <span className="text-xs font-bold text-primary uppercase tracking-widest bg-primary-900/20 px-2.5 py-1 rounded">
-                                                        {col === "Date Sign-on (DD/MM/YYYY)" ? "Sign-on Date" : col}
-                                                    </span>
-                                                </th>
-                                            ))}
+                                            {pastedHeaders.map((header, colIdx) => {
+                                                const mappedReq = columnMapping[colIdx] || "";
+                                                const isUnmapped = !mappedReq;
+                                                // Dynamic min-width based on mapped column type to prevent cutoff
+                                                let minWidthClass = "min-w-[180px]";
+                                                if (mappedReq === "Name") minWidthClass = "min-w-[250px]";
+                                                if (mappedReq === "Comments") minWidthClass = "min-w-[300px]";
+                                                if (mappedReq === "Nationality") minWidthClass = "min-w-[220px]";
+
+                                                return (
+                                                    <th key={colIdx} className={`px-3 py-3 text-left border-b border-r border-surface-border ${minWidthClass} ${isUnmapped ? "bg-surface-raised" : "bg-primary-900/10"}`}>
+                                                        <div className="flex flex-col gap-2.5">
+                                                            {/* Original pasted header */}
+                                                            <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest truncate" title={header}>
+                                                                Excel Column: <span className="text-white ml-1">{header.replace(/[\r\n]+/g, ' ') || `Column ${colIdx + 1}`}</span>
+                                                            </div>
+                                                            {/* Mapping dropdown */}
+                                                            <div className="relative">
+                                                                <select
+                                                                    value={mappedReq}
+                                                                    onChange={(e) => updateMapping(colIdx, e.target.value)}
+                                                                    className={`w-full text-xs font-bold uppercase tracking-wider px-3 py-2 rounded-lg outline-none border transition-colors cursor-pointer appearance-none ${isUnmapped
+                                                                        ? "bg-surface border-surface-border hover:border-gray-500 text-gray-500"
+                                                                        : "bg-primary-900/20 text-primary border-primary/40 hover:border-primary/80"
+                                                                        }`}
+                                                                    style={{ backgroundImage: `url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23${isUnmapped ? '94a3b8' : '38bdf8'}%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.75rem top 50%', backgroundSize: '.65rem auto', paddingRight: '2rem' }}
+                                                                >
+                                                                    <option value="" className="bg-surface text-gray-400">-- Ignore --</option>
+                                                                    {requiredColumns.map(rc => (
+                                                                        <option key={rc} value={rc} className="bg-surface text-foreground">{rc === "Date Sign-on (DD/MM/YYYY)" ? "Sign-on Date" : rc}</option>
+                                                                    ))}
+                                                                </select>
+                                                            </div>
+                                                        </div>
+                                                    </th>
+                                                );
+                                            })}
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-surface-border/50">
-                                        {previewData.slice(0, 50).map((row, rowIdx) => (
+                                        {pastedRows.slice(0, 50).map((rowCells, rowIdx) => (
                                             <tr key={rowIdx} className="hover:bg-surface-hover/30 transition-colors relative" style={{ zIndex: 100 - rowIdx }}>
                                                 <td className="px-4 py-2 text-xs font-bold text-gray-600 font-[family-name:var(--font-jetbrains)]">{rowIdx + 1}</td>
-                                                {requiredColumns.map(col => {
-                                                    const val = row[col] || "";
-                                                    const isRequired = col !== "Comments";
+                                                {pastedHeaders.map((_, colIdx) => {
+                                                    const val = rowCells[colIdx] || "";
+                                                    const mappedReq = columnMapping[colIdx];
+                                                    const isRequired = mappedReq && mappedReq !== "Comments";
                                                     const isMissing = isRequired && !val.trim();
-                                                    const isDate = col === "Date Sign-on (DD/MM/YYYY)";
+                                                    const isDate = mappedReq === "Date Sign-on (DD/MM/YYYY)";
 
                                                     return (
-                                                        <td key={col} className={`px-2 py-1.5 align-top ${col === "Name" ? "min-w-[250px]"
-                                                            : col === "Comments" ? "min-w-[300px]"
-                                                                : col === "Nationality" ? "min-w-[220px]"
-                                                                    : "min-w-[140px]"
-                                                            }`}>
+                                                        <td key={colIdx} className="px-2 py-1.5 align-top border-r border-surface-border/20">
                                                             {isDate ? (
                                                                 <input
                                                                     type="date"
                                                                     value={toISODate(val)}
-                                                                    onChange={(e) => updateCell(rowIdx, col, fromISODate(e.target.value))}
+                                                                    onChange={(e) => updateCell(rowIdx, colIdx, fromISODate(e.target.value))}
                                                                     className={`w-full px-3 py-2 text-sm rounded-lg border focus:outline-none transition-all duration-150 font-[family-name:var(--font-jetbrains)]
                                                                         bg-surface text-foreground color-scheme-dark
                                                                         ${isMissing
                                                                             ? "border-danger focus:border-danger focus:shadow-[0_0_8px_rgba(248,113,113,0.3)] bg-danger-muted/30 text-danger"
-                                                                            : "border-surface-border focus:border-primary focus:shadow-[0_0_8px_var(--color-primary-glow)]"
+                                                                            : mappedReq ? "border-surface-border focus:border-primary focus:shadow-[0_0_8px_var(--color-primary-glow)]"
+                                                                                : "border-transparent bg-transparent text-gray-500 hover:border-surface-border"
                                                                         }`}
                                                                 />
-                                                            ) : col === "Nationality" ? (
+                                                            ) : mappedReq === "Nationality" ? (
                                                                 <div className="relative z-50">
                                                                     <SearchableDropdown
                                                                         options={NATIONALITIES}
                                                                         value={val}
-                                                                        onChange={(v) => updateCell(rowIdx, col, v)}
+                                                                        onChange={(v) => updateCell(rowIdx, colIdx, v)}
                                                                         placeholder={isMissing ? "Missing Nationality" : "Select nationality..."}
-                                                                        id={`import-${rowIdx}-nat`}
-                                                                        error={isMissing}
+                                                                        id={`import-${rowIdx}-${colIdx}-nat`}
+                                                                        error={!!isMissing}
                                                                     />
                                                                 </div>
-                                                            ) : col === "Name" || col === "Comments" ? (
+                                                            ) : mappedReq === "Name" || mappedReq === "Comments" ? (
                                                                 <textarea
                                                                     value={val}
-                                                                    onChange={(e) => updateCell(rowIdx, col, e.target.value)}
-                                                                    placeholder={isMissing ? "Missing" : ""}
+                                                                    onChange={(e) => updateCell(rowIdx, colIdx, e.target.value)}
+                                                                    placeholder={isMissing ? "Missing" : (mappedReq ? "" : "Ignored")}
                                                                     rows={1}
                                                                     onInput={(e) => {
                                                                         const target = e.target as HTMLTextAreaElement;
@@ -353,20 +474,22 @@ export default function SmartImportModal({
                                                                         bg-surface text-foreground leading-relaxed
                                                                         ${isMissing
                                                                             ? "border-danger placeholder-danger/60 focus:border-danger focus:shadow-[0_0_8px_rgba(248,113,113,0.3)] bg-danger-muted/30 text-danger"
-                                                                            : "border-surface-border focus:border-primary focus:shadow-[0_0_8px_var(--color-primary-glow)]"
+                                                                            : mappedReq ? "border-surface-border focus:border-primary focus:shadow-[0_0_8px_var(--color-primary-glow)]"
+                                                                                : "border-transparent bg-transparent text-gray-500 hover:border-surface-border"
                                                                         }`}
                                                                 />
                                                             ) : (
                                                                 <input
                                                                     type="text"
                                                                     value={val}
-                                                                    onChange={(e) => updateCell(rowIdx, col, e.target.value)}
-                                                                    placeholder={isMissing ? "Missing" : ""}
+                                                                    onChange={(e) => updateCell(rowIdx, colIdx, e.target.value)}
+                                                                    placeholder={isMissing ? "Missing" : (mappedReq ? "" : "Ignored")}
                                                                     className={`w-full px-3 py-2 text-sm rounded-lg border focus:outline-none transition-all duration-150 font-[family-name:var(--font-jetbrains)]
                                                                         bg-surface text-foreground
                                                                         ${isMissing
                                                                             ? "border-danger placeholder-danger/60 focus:border-danger focus:shadow-[0_0_8px_rgba(248,113,113,0.3)] bg-danger-muted/30 text-danger"
-                                                                            : "border-surface-border focus:border-primary focus:shadow-[0_0_8px_var(--color-primary-glow)]"
+                                                                            : mappedReq ? "border-surface-border focus:border-primary focus:shadow-[0_0_8px_var(--color-primary-glow)]"
+                                                                                : "border-transparent bg-transparent text-gray-500 hover:border-surface-border"
                                                                         }`}
                                                                 />
                                                             )}
@@ -378,9 +501,9 @@ export default function SmartImportModal({
                                     </tbody>
                                 </table>
                             </div>
-                            {previewData.length > 50 && (
+                            {pastedRows.length > 50 && (
                                 <p className="text-xs text-center text-gray-500 font-bold tracking-wider uppercase mt-4">
-                                    Displaying first 50 rows. All {previewData.length} rows will be imported.
+                                    Displaying first 50 rows. All {pastedRows.length} rows will be imported.
                                 </p>
                             )}
                         </div>
@@ -388,7 +511,7 @@ export default function SmartImportModal({
                 </div>
 
                 {/* Footer Action */}
-                {previewData.length > 0 && (
+                {pastedRows.length > 0 && (
                     <div className="flex items-center justify-between px-6 py-4 border-t border-surface-border bg-surface-raised shrink-0">
                         <div className="text-xs flex items-center gap-4">
                             {totalMissing > 0 ? (

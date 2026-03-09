@@ -10,13 +10,29 @@ export interface DialogDraft {
     from: string;
     to: string;
     activity: string;
+    location: string;
     category: string;
     dp: boolean;
     lifts: string;
     pob: string;
 }
 
-const VESSEL_CATEGORIES = [
+export const LOCATIONS = [
+    "-",
+    "BRE",
+    "BSR",
+    "KER",
+    "LAB",
+    "LDN",
+    "MIR",
+    "TJG",
+    "Supply Base",
+    "Anchorage",
+    "En-route",
+    "500m Zone",
+];
+
+export const VESSEL_CATEGORIES = [
     "Maneuvering at Supply Base",
     "Alongside berth at Supply Base",
     "Anchorage at Supply Base",
@@ -121,6 +137,7 @@ export default function ActivityDialog({ fromTime, isFirst, onComplete, onClose 
     const [lifts, setLifts] = useState("");
     const [pob, setPob] = useState("");
     const [activity, setActivity] = useState("");
+    const [location, setLocation] = useState("");
     const [category, setCategory] = useState("");
 
     const backdropRef = useRef<HTMLDivElement>(null);
@@ -164,8 +181,8 @@ export default function ActivityDialog({ fromTime, isFirst, onComplete, onClose 
 
     const handleComplete = useCallback(() => {
         if (!category) return;
-        onComplete({ from: fromTime, to, activity, category, dp, lifts, pob });
-    }, [fromTime, to, activity, category, dp, lifts, pob, onComplete]);
+        onComplete({ from: fromTime, to, activity, location, category, dp, lifts, pob });
+    }, [fromTime, to, activity, location, category, dp, lifts, pob, onComplete]);
 
     const handleBackdropClick = useCallback((e: React.MouseEvent) => {
         if (e.target === backdropRef.current) onClose();
@@ -181,7 +198,7 @@ export default function ActivityDialog({ fromTime, isFirst, onComplete, onClose 
             </p>
             <div className="flex items-center gap-6">
                 {/* FROM */}
-                <TimePicker value={fromTime} onChange={() => { }} readOnly label="From" />
+                <TimePicker value={fromTime} onChange={() => { }} readOnly label="From" id="dialog-from" />
 
                 {/* Arrow */}
                 <div className="pt-5">
@@ -191,7 +208,7 @@ export default function ActivityDialog({ fromTime, isFirst, onComplete, onClose 
                 </div>
 
                 {/* TO */}
-                <TimePicker value={to} onChange={setTo} label="To" minTime={fromTime} />
+                <TimePicker value={to} onChange={setTo} label="To" minTime={fromTime} id="dialog-to" />
             </div>
 
             {/* Duration indicator */}
@@ -233,21 +250,38 @@ export default function ActivityDialog({ fromTime, isFirst, onComplete, onClose 
     const renderStep2 = () => (
         <div className="flex flex-col items-center gap-6 py-4">
             <p className="text-sm text-gray-400 text-center">
-                Describe what the vessel is doing and where.
+                Describe the activity and select a location.
             </p>
-            <div className="w-full max-w-lg">
-                <label className="block text-xs font-bold text-sky-300 uppercase tracking-widest mb-2">
-                    Activity & Location
-                </label>
-                <input
-                    ref={inputRef}
-                    type="text"
-                    value={activity}
-                    onChange={(e) => setActivity(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); goNext(); } }}
-                    placeholder="e.g. VESSEL OUTSIDE 500MZ AT BRE"
-                    className="vdr-input text-base py-3"
-                />
+            <div className="w-full max-w-lg space-y-4">
+                <div>
+                    <label className="block text-xs font-bold text-sky-300 uppercase tracking-widest mb-2">
+                        Activity Description
+                    </label>
+                    <input
+                        ref={inputRef}
+                        type="text"
+                        value={activity}
+                        onChange={(e) => setActivity(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); goNext(); } }}
+                        placeholder="e.g. VESSEL OUTSIDE 500MZ AT BRE"
+                        className="vdr-input text-base py-3"
+                    />
+                </div>
+                <div>
+                    <label className="block text-xs font-bold text-sky-300 uppercase tracking-widest mb-2">
+                        Location
+                    </label>
+                    <select
+                        value={location}
+                        onChange={(e) => setLocation(e.target.value)}
+                        className="w-full bg-[#1e293b] text-base text-foreground border border-surface-border rounded-lg px-3 py-3 focus:outline-none focus:border-primary/50 focus:shadow-[0_0_6px_var(--color-primary-glow)] transition-all cursor-pointer"
+                    >
+                        <option value="">Select location…</option>
+                        {LOCATIONS.map((l) => (
+                            <option key={l} value={l}>{l}</option>
+                        ))}
+                    </select>
+                </div>
             </div>
         </div>
     );

@@ -10,6 +10,7 @@ interface TimePickerProps {
     onComplete?: () => void;
     minTime?: string;
     label?: string; // "FROM" or "TO"
+    size?: "sm" | "md";
 }
 
 function timeToMinutes(t: string): number {
@@ -33,7 +34,7 @@ const ALL_HOURS = Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, 
 const ALL_MINUTES = Array.from({ length: 60 }, (_, i) => i.toString().padStart(2, "0")); // 00–59
 
 export default function TimePicker({
-    value, onChange, readOnly = false, id, onComplete, minTime, label,
+    value, onChange, readOnly = false, id, onComplete, minTime, label, size = "md",
 }: TimePickerProps) {
     const [localHh, setLocalHh] = useState(value.length >= 2 ? value.slice(0, 2) : "");
     const [localMm, setLocalMm] = useState(value.length >= 4 ? value.slice(2, 4) : "");
@@ -162,7 +163,7 @@ export default function TimePicker({
             {label && (
                 <span className="text-xs font-bold text-sky-300 uppercase tracking-widest">{label}</span>
             )}
-            <div className={`flex items-center gap-0.5 rounded-lg border px-2 py-1 transition-all duration-200
+            <div className={`flex items-center gap-0.5 rounded-lg border ${size === "sm" ? "px-1.5 py-0.5" : "px-2 py-1"} transition-all duration-200
                 ${readOnly
                     ? "bg-surface-raised/50 border-surface-border"
                     : hasError
@@ -173,7 +174,7 @@ export default function TimePicker({
                 }`}
             >
                 {/* Clock Icon */}
-                <svg className={`w-4 h-4 mr-1 ${isComplete ? "text-primary" : "text-gray-500"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <svg className={`${size === "sm" ? "w-3.5 h-3.5" : "w-4 h-4"} mr-1 ${isComplete ? "text-primary" : "text-gray-500"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
 
@@ -198,6 +199,20 @@ export default function TimePicker({
                                 }, 50);
                             }
                         }}
+                        onKeyDown={(e) => {
+                            if (e.key === "Tab" && !e.shiftKey || e.key === "Enter") {
+                                e.preventDefault();
+                                const padded = (localHh || "").padStart(2, "0");
+                                setLocalHh(padded);
+                                const newVal = padded + (localMm || "");
+                                onChange(newVal);
+                                setHhOpen(false);
+                                setTimeout(() => {
+                                    setMmOpen(true);
+                                    document.getElementById(`mm-input-${id || 'timepicker'}`)?.focus();
+                                }, 50);
+                            }
+                        }}
                         onBlur={() => {
                             const padded = (localHh || "").padStart(2, "0");
                             if (padded !== localHh) {
@@ -209,7 +224,7 @@ export default function TimePicker({
                         onClick={() => { if (!readOnly) setHhOpen(true); }}
                         readOnly={readOnly}
                         placeholder={hh ? undefined : "HH"}
-                        className={`w-9 text-center bg-transparent outline-none flex items-center justify-center text-lg font-bold font-[family-name:var(--font-jetbrains)] rounded transition-all duration-200
+                        className={`${size === "sm" ? "w-6 text-sm" : "w-9 text-lg"} text-center bg-transparent outline-none flex items-center justify-center font-bold font-[family-name:var(--font-jetbrains)] rounded transition-all duration-200
                             ${readOnly
                                 ? "text-gray-500 cursor-default"
                                 : hasError
@@ -240,7 +255,7 @@ export default function TimePicker({
                 </div>
 
                 {/* Colon separator */}
-                <span className={`text-lg font-bold font-[family-name:var(--font-jetbrains)] pb-0.5 ${isComplete ? "text-primary/70" : "text-gray-600"}`}>:</span>
+                <span className={`${size === "sm" ? "text-sm" : "text-lg"} font-bold font-[family-name:var(--font-jetbrains)] pb-0.5 ${isComplete ? "text-primary/70" : "text-gray-600"}`}>:</span>
 
                 {/* Minute selector */}
                 <div ref={mmRef} className="relative">
@@ -274,7 +289,7 @@ export default function TimePicker({
                         onClick={() => { if (!readOnly) setMmOpen(true); }}
                         readOnly={readOnly}
                         placeholder={mm ? undefined : "MM"}
-                        className={`w-9 text-center bg-transparent outline-none flex items-center justify-center text-lg font-bold font-[family-name:var(--font-jetbrains)] rounded transition-all duration-200
+                        className={`${size === "sm" ? "w-6 text-sm" : "w-9 text-lg"} text-center bg-transparent outline-none flex items-center justify-center font-bold font-[family-name:var(--font-jetbrains)] rounded transition-all duration-200
                             ${readOnly
                                 ? "text-gray-500 cursor-default"
                                 : hasError
